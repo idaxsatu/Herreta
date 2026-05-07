@@ -51,3 +51,56 @@ library SafeTransferLib {
         (bool ok, bytes memory ret) = address(t).call(
             abi.encodeWithSelector(IERC20Minimal.transferFrom.selector, from, to, amount)
         );
+        if (!ok || (ret.length != 0 && !abi.decode(ret, (bool)))) revert STF_TransferFromFailed();
+    }
+
+    function safeApprove(IERC20Minimal t, address spender, uint256 amount) internal {
+        (bool ok, bytes memory ret) =
+            address(t).call(abi.encodeWithSelector(IERC20Minimal.approve.selector, spender, amount));
+        if (!ok || (ret.length != 0 && !abi.decode(ret, (bool)))) revert STF_ApproveFailed();
+    }
+}
+
+library FixedPointMath {
+    function mulDivDown(uint256 x, uint256 y, uint256 d) internal pure returns (uint256 z) {
+        unchecked {
+            z = (x * y) / d;
+        }
+    }
+
+    function mulDivUp(uint256 x, uint256 y, uint256 d) internal pure returns (uint256 z) {
+        unchecked {
+            z = (x * y + (d - 1)) / d;
+        }
+    }
+}
+
+library MerkleProofLib {
+    function verify(bytes32[] calldata proof, bytes32 root, bytes32 leaf) internal pure returns (bool) {
+        bytes32 computed = leaf;
+        for (uint256 i = 0; i < proof.length; i++) {
+            bytes32 p = proof[i];
+            computed = computed < p ? keccak256(abi.encodePacked(computed, p)) : keccak256(abi.encodePacked(p, computed));
+        }
+        return computed == root;
+    }
+}
+
+library ReentrancyGuardLite {
+    error RGL_Reentrancy();
+
+    struct Guard {
+        uint256 state;
+    }
+
+    function init(Guard storage g) internal {
+        if (g.state == 0) g.state = 1;
+    }
+
+    function enter(Guard storage g) internal {
+        if (g.state != 1) revert RGL_Reentrancy();
+        g.state = 2;
+    }
+
+    function exit(Guard storage g) internal {
+        g.state = 1;

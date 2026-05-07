@@ -422,3 +422,56 @@ contract Herreta {
             if (allowed < amount) revert HR_BadAmount();
             allowance[from][msg.sender] = allowed - amount;
             emit Approval(from, msg.sender, allowance[from][msg.sender]);
+        }
+        _transfer(from, to, amount);
+        return true;
+    }
+
+    function _transfer(address from, address to, uint256 amount) internal {
+        if (to == address(0) || from == address(0)) revert HR_ZeroAddress();
+        uint256 b = balanceOf[from];
+        if (b < amount) revert HR_InsufficientShares();
+        unchecked {
+            balanceOf[from] = b - amount;
+            balanceOf[to] += amount;
+        }
+        emit Transfer(from, to, amount);
+    }
+
+    // =============================================================
+    // Vault view helpers
+    // =============================================================
+
+    function totalAssets() public view returns (uint256) {
+        return asset.balanceOf(address(this));
+    }
+
+    function convertToShares(uint256 assets) public view returns (uint256) {
+        uint256 ts = totalSupply;
+        uint256 ta = totalAssets();
+        if (ts == 0 || ta == 0) return assets;
+        return assets.mulDivDown(ts, ta);
+    }
+
+    function convertToAssets(uint256 shares) public view returns (uint256) {
+        uint256 ts = totalSupply;
+        uint256 ta = totalAssets();
+        if (ts == 0) return shares;
+        return shares.mulDivDown(ta, ts);
+    }
+
+    function previewDeposit(uint256 assets) external view returns (uint256) {
+        return convertToShares(assets);
+    }
+
+    function previewMint(uint256 shares) external view returns (uint256) {
+        uint256 ts = totalSupply;
+        uint256 ta = totalAssets();
+        if (ts == 0 || ta == 0) return shares;
+        return shares.mulDivUp(ta, ts);
+    }
+
+    function previewWithdraw(uint256 assets) external view returns (uint256 shares) {
+        uint256 ts = totalSupply;
+        uint256 ta = totalAssets();
+        if (ts == 0 || ta == 0) return assets;

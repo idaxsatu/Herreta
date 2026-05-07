@@ -104,3 +104,56 @@ library ReentrancyGuardLite {
 
     function exit(Guard storage g) internal {
         g.state = 1;
+    }
+}
+
+// =============================================================
+// Contract
+// =============================================================
+
+contract Herreta {
+    using SafeTransferLib for IERC20Minimal;
+    using FixedPointMath for uint256;
+    using ReentrancyGuardLite for ReentrancyGuardLite.Guard;
+
+    // =============================================================
+    // Errors (distinct prefixes)
+    // =============================================================
+
+    error HR_ZeroAddress();
+    error HR_BadAmount();
+    error HR_BadState();
+    error HR_NotAuthorized();
+    error HR_TooSoon();
+    error HR_Expired();
+    error HR_QueueEmpty();
+    error HR_QueueMismatch();
+    error HR_InsufficientShares();
+    error HR_InsufficientAssets();
+    error HR_BadFee();
+    error HR_BadRoot();
+    error HR_ProofInvalid();
+    error HR_AlreadyClaimed();
+    error HR_Unsupported();
+
+    // =============================================================
+    // Events
+    // =============================================================
+
+    event HerretaInitialized(address indexed owner, address indexed asset, string name, string symbol);
+    event OwnershipProposed(address indexed currentOwner, address indexed pendingOwner);
+    event OwnershipAccepted(address indexed previousOwner, address indexed newOwner);
+    event GuardianUpdated(address indexed oldGuardian, address indexed newGuardian);
+    event Paused(address indexed by);
+    event Unpaused(address indexed by);
+
+    event Deposit(address indexed caller, address indexed receiver, uint256 assets, uint256 shares);
+    event Withdraw(address indexed caller, address indexed receiver, address indexed owner, uint256 assets, uint256 shares);
+
+    event FeeBpsQueued(uint256 indexed nonce, uint16 feeBps, uint256 eta);
+    event FeeBpsApplied(uint256 indexed nonce, uint16 feeBps);
+    event FeeRecipientQueued(uint256 indexed nonce, address feeRecipient, uint256 eta);
+    event FeeRecipientApplied(uint256 indexed nonce, address feeRecipient);
+
+    event WithdrawalDelayQueued(uint256 indexed nonce, uint32 delaySeconds, uint256 eta);
+    event WithdrawalDelayApplied(uint256 indexed nonce, uint32 delaySeconds);

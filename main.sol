@@ -369,3 +369,56 @@ contract Herreta {
         pendingOwner = address(0);
         emit OwnershipAccepted(prev, p);
     }
+
+    // =============================================================
+    // Guardian and pause
+    // =============================================================
+
+    function setGuardian(address newGuardian) external {
+        _onlyOwner();
+        if (newGuardian == address(0)) revert HR_ZeroAddress();
+        address old = guardian;
+        guardian = newGuardian;
+        emit GuardianUpdated(old, newGuardian);
+    }
+
+    function pause() external {
+        _onlyGuardianOrOwner();
+        if (!paused) {
+            paused = true;
+            emit Paused(msg.sender);
+        }
+    }
+
+    function unpause() external {
+        _onlyOwner();
+        if (paused) {
+            paused = false;
+            emit Unpaused(msg.sender);
+        }
+    }
+
+    // =============================================================
+    // ERC20-like shares
+    // =============================================================
+
+    event Approval(address indexed holder, address indexed spender, uint256 value);
+    event Transfer(address indexed from, address indexed to, uint256 value);
+
+    function approve(address spender, uint256 amount) external returns (bool) {
+        allowance[msg.sender][spender] = amount;
+        emit Approval(msg.sender, spender, amount);
+        return true;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        _transfer(msg.sender, to, amount);
+        return true;
+    }
+
+    function transferFrom(address from, address to, uint256 amount) external returns (bool) {
+        uint256 allowed = allowance[from][msg.sender];
+        if (allowed != type(uint256).max) {
+            if (allowed < amount) revert HR_BadAmount();
+            allowance[from][msg.sender] = allowed - amount;
+            emit Approval(from, msg.sender, allowance[from][msg.sender]);

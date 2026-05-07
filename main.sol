@@ -475,3 +475,56 @@ contract Herreta {
         uint256 ts = totalSupply;
         uint256 ta = totalAssets();
         if (ts == 0 || ta == 0) return assets;
+        shares = assets.mulDivUp(ts, ta);
+    }
+
+    function previewRedeem(uint256 shares) external view returns (uint256) {
+        return convertToAssets(shares);
+    }
+
+    // =============================================================
+    // Deposit / Mint
+    // =============================================================
+
+    function deposit(uint256 assets, address receiver) external returns (uint256 shares) {
+        _whenNotPaused();
+        if (receiver == address(0)) revert HR_ZeroAddress();
+        if (assets == 0) revert HR_BadAmount();
+
+        _guard.enter();
+        shares = convertToShares(assets);
+        if (shares == 0) revert HR_BadAmount();
+
+        asset.safeTransferFrom(msg.sender, address(this), assets);
+        _mint(receiver, shares);
+        emit Deposit(msg.sender, receiver, assets, shares);
+        _guard.exit();
+    }
+
+    function mint(uint256 shares, address receiver) external returns (uint256 assets) {
+        _whenNotPaused();
+        if (receiver == address(0)) revert HR_ZeroAddress();
+        if (shares == 0) revert HR_BadAmount();
+
+        _guard.enter();
+        uint256 ts = totalSupply;
+        uint256 ta = totalAssets();
+        if (ts == 0 || ta == 0) assets = shares;
+        else assets = shares.mulDivUp(ta, ts);
+
+        asset.safeTransferFrom(msg.sender, address(this), assets);
+        _mint(receiver, shares);
+        emit Deposit(msg.sender, receiver, assets, shares);
+        _guard.exit();
+    }
+
+    function depositWithPermit(
+        uint256 assets,
+        address receiver,
+        uint256 deadline,
+        uint8 v,
+        bytes32 r,
+        bytes32 s
+    ) external returns (uint256 shares) {
+        _whenNotPaused();
+        if (receiver == address(0)) revert HR_ZeroAddress();

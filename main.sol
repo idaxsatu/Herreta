@@ -634,3 +634,56 @@ contract Herreta {
         uint16 fb = feeBps;
         uint256 fee = fb == 0 ? 0 : (grossAssets * uint256(fb)) / 10_000;
         assetsOut = grossAssets - fee;
+
+        if (assetsOut < wr.minAssets) revert HR_InsufficientAssets();
+
+        wr.executed = true;
+
+        _burn(wr.owner, sharesBurned);
+
+        if (fee != 0) {
+            address fr = feeRecipient;
+            if (fr == address(0)) revert HR_ZeroAddress();
+            asset.safeTransfer(fr, fee);
+        }
+        asset.safeTransfer(wr.receiver, assetsOut);
+
+        emit WithdrawalExecuted(requestId, msg.sender, assetsOut, sharesBurned);
+        emit Withdraw(msg.sender, wr.receiver, wr.owner, assetsOut, sharesBurned);
+        _guard.exit();
+    }
+
+    // =============================================================
+    // Owner-queued configuration (time delayed)
+    // =============================================================
+
+    function queueFeeBps(uint16 nextFeeBps, uint32 delaySeconds) external returns (uint256 nonce, uint256 eta) {
+        _onlyOwner();
+        if (nextFeeBps > MAX_FEE_BPS) revert HR_BadFee();
+        if (delaySeconds < MIN_DELAY || delaySeconds > MAX_DELAY) revert HR_BadAmount();
+        nonce = _queuedFeeBps.nonce + 1;
+        eta = block.timestamp + delaySeconds;
+        _queuedFeeBps = QueuedUint16({nonce: nonce, value: nextFeeBps, eta: eta, queued: true});
+        emit FeeBpsQueued(nonce, nextFeeBps, eta);
+    }
+
+    function applyFeeBps(uint256 expectedNonce) external {
+        _onlyOwner();
+        QueuedUint16 memory q = _queuedFeeBps;
+        if (!q.queued) revert HR_QueueEmpty();
+        if (q.nonce != expectedNonce) revert HR_QueueMismatch();
+        if (block.timestamp < q.eta) revert HR_TooSoon();
+        feeBps = q.value;
+        delete _queuedFeeBps;
+        emit FeeBpsApplied(expectedNonce, feeBps);
+    }
+
+    function queueFeeRecipient(address nextFeeRecipient, uint32 delaySeconds)
+        external
+        returns (uint256 nonce, uint256 eta)
+    {
+        _onlyOwner();
+        if (nextFeeRecipient == address(0)) revert HR_ZeroAddress();
+        if (delaySeconds < MIN_DELAY || delaySeconds > MAX_DELAY) revert HR_BadAmount();
+        nonce = _queuedFeeRecipient.nonce + 1;
+        eta = block.timestamp + delaySeconds;

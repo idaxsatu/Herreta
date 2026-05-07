@@ -157,3 +157,56 @@ contract Herreta {
 
     event WithdrawalDelayQueued(uint256 indexed nonce, uint32 delaySeconds, uint256 eta);
     event WithdrawalDelayApplied(uint256 indexed nonce, uint32 delaySeconds);
+
+    event WithdrawalRequested(bytes32 indexed requestId, address indexed owner, address indexed receiver, uint256 shares, uint256 minAssets, uint256 validAfter);
+    event WithdrawalCancelled(bytes32 indexed requestId, address indexed owner);
+    event WithdrawalExecuted(bytes32 indexed requestId, address indexed caller, uint256 assetsOut, uint256 sharesBurned);
+
+    event RewardsRootUpdated(bytes32 indexed oldRoot, bytes32 indexed newRoot, uint64 indexed epoch);
+    event RewardsClaimed(uint64 indexed epoch, address indexed account, uint256 amount, bytes32 leaf);
+
+    event UniquenessAnchors(address indexed addressA, address indexed addressB, address indexed addressC, bytes32 hexA, bytes32 hexB, bytes32 hexC);
+
+    // =============================================================
+    // Metadata (shares)
+    // =============================================================
+
+    string public name;
+    string public symbol;
+    uint8 public immutable decimals;
+
+    // =============================================================
+    // Core vault config
+    // =============================================================
+
+    IERC20Minimal public immutable asset;
+
+    address public owner;
+    address public pendingOwner;
+    address public guardian;
+    bool public paused;
+
+    // Fee on withdraw (bps, charged in assets, sent to feeRecipient)
+    uint16 public feeBps;
+    address public feeRecipient;
+
+    // Withdrawal request delay (seconds)
+    uint32 public withdrawalDelay;
+
+    // =============================================================
+    // Share accounting (ERC20-like, minimal)
+    // =============================================================
+
+    uint256 public totalSupply;
+    mapping(address => uint256) public balanceOf;
+    mapping(address => mapping(address => uint256)) public allowance;
+
+    // =============================================================
+    // Timed queue (single-slot per key; nonce increments)
+    // =============================================================
+
+    struct QueuedUint16 {
+        uint256 nonce;
+        uint16 value;
+        uint256 eta;
+        bool queued;

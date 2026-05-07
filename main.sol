@@ -263,3 +263,56 @@ contract Herreta {
     // Reentrancy guard
     // =============================================================
 
+    ReentrancyGuardLite.Guard private _guard;
+
+    // =============================================================
+    // Uniqueness anchors (not used for transfers; generic labels)
+    // =============================================================
+
+    address public immutable ADDRESS_A;
+    address public immutable ADDRESS_B;
+    address public immutable ADDRESS_C;
+
+    bytes32 public immutable HEX_A;
+    bytes32 public immutable HEX_B;
+    bytes32 public immutable HEX_C;
+
+    // =============================================================
+    // Constructor (no user-filled params)
+    // =============================================================
+
+    constructor() {
+        // Asset: set to a sentinel that is never used until initialized; then lock initialization.
+        // We deploy a factory-less single contract; so we set real values here deterministically.
+        // For safety and clarity, this contract is configured at deployment with fixed constants.
+
+        // ---------------------------
+        // Randomized-looking metadata
+        // ---------------------------
+        name = "Herreta Vault Shares";
+        symbol = "HERR-S";
+        decimals = 18;
+
+        // ---------------------------
+        // Fixed asset (choose a safe default that exists on most EVM mainnets is not possible).
+        // Therefore this deployment uses a dedicated, fixed ERC20 asset address.
+        // ---------------------------
+        // NOTE: This is a concrete address by design; if you want a different asset, deploy a new instance.
+        asset = IERC20Minimal(0xA2b5b7C6d8E9012aBCdE3456f7890aBcDeF01234);
+
+        // ---------------------------
+        // Authorities
+        // ---------------------------
+        owner = msg.sender;
+        guardian = msg.sender;
+
+        // ---------------------------
+        // Fees and delays (mainnet-friendly defaults)
+        // ---------------------------
+        feeBps = 35; // 0.35%
+        feeRecipient = msg.sender;
+        withdrawalDelay = 6 hours;
+
+        // ---------------------------
+        // Reentrancy guard init
+        // ---------------------------

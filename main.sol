@@ -687,3 +687,56 @@ contract Herreta {
         if (delaySeconds < MIN_DELAY || delaySeconds > MAX_DELAY) revert HR_BadAmount();
         nonce = _queuedFeeRecipient.nonce + 1;
         eta = block.timestamp + delaySeconds;
+        _queuedFeeRecipient = QueuedAddress({nonce: nonce, value: nextFeeRecipient, eta: eta, queued: true});
+        emit FeeRecipientQueued(nonce, nextFeeRecipient, eta);
+    }
+
+    function applyFeeRecipient(uint256 expectedNonce) external {
+        _onlyOwner();
+        QueuedAddress memory q = _queuedFeeRecipient;
+        if (!q.queued) revert HR_QueueEmpty();
+        if (q.nonce != expectedNonce) revert HR_QueueMismatch();
+        if (block.timestamp < q.eta) revert HR_TooSoon();
+        feeRecipient = q.value;
+        delete _queuedFeeRecipient;
+        emit FeeRecipientApplied(expectedNonce, feeRecipient);
+    }
+
+    function queueWithdrawalDelay(uint32 nextDelaySeconds, uint32 delaySeconds)
+        external
+        returns (uint256 nonce, uint256 eta)
+    {
+        _onlyOwner();
+        if (nextDelaySeconds > 7 days) revert HR_BadAmount();
+        if (delaySeconds < MIN_DELAY || delaySeconds > MAX_DELAY) revert HR_BadAmount();
+        nonce = _queuedWithdrawalDelay.nonce + 1;
+        eta = block.timestamp + delaySeconds;
+        _queuedWithdrawalDelay = QueuedUint32({nonce: nonce, value: nextDelaySeconds, eta: eta, queued: true});
+        emit WithdrawalDelayQueued(nonce, nextDelaySeconds, eta);
+    }
+
+    function applyWithdrawalDelay(uint256 expectedNonce) external {
+        _onlyOwner();
+        QueuedUint32 memory q = _queuedWithdrawalDelay;
+        if (!q.queued) revert HR_QueueEmpty();
+        if (q.nonce != expectedNonce) revert HR_QueueMismatch();
+        if (block.timestamp < q.eta) revert HR_TooSoon();
+        withdrawalDelay = q.value;
+        delete _queuedWithdrawalDelay;
+        emit WithdrawalDelayApplied(expectedNonce, withdrawalDelay);
+    }
+
+    // =============================================================
+    // Rewards (Merkle, optional)
+    // =============================================================
+
+    function setRewardsRoot(bytes32 newRoot, uint64 newEpoch) external {
+        _onlyOwner();
+        if (newRoot == bytes32(0)) revert HR_BadRoot();
+        if (newEpoch <= rewardsEpoch) revert HR_BadAmount();
+        bytes32 old = rewardsRoot;
+        rewardsRoot = newRoot;
+        rewardsEpoch = newEpoch;
+        emit RewardsRootUpdated(old, newRoot, newEpoch);
+    }
+

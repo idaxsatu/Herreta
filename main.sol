@@ -528,3 +528,56 @@ contract Herreta {
     ) external returns (uint256 shares) {
         _whenNotPaused();
         if (receiver == address(0)) revert HR_ZeroAddress();
+        if (assets == 0) revert HR_BadAmount();
+
+        // Best-effort permit; if token doesn't support it, user can approve normally.
+        try IERC20PermitLike(address(asset)).permit(msg.sender, address(this), assets, deadline, v, r, s) {} catch {
+            revert HR_Unsupported();
+        }
+
+        _guard.enter();
+        shares = convertToShares(assets);
+        if (shares == 0) revert HR_BadAmount();
+
+        asset.safeTransferFrom(msg.sender, address(this), assets);
+        _mint(receiver, shares);
+        emit Deposit(msg.sender, receiver, assets, shares);
+        _guard.exit();
+    }
+
+    function _mint(address to, uint256 amount) internal {
+        totalSupply += amount;
+        unchecked {
+            balanceOf[to] += amount;
+        }
+        emit Transfer(address(0), to, amount);
+    }
+
+    function _burn(address from, uint256 amount) internal {
+        uint256 b = balanceOf[from];
+        if (b < amount) revert HR_InsufficientShares();
+        unchecked {
+            balanceOf[from] = b - amount;
+        }
+        totalSupply -= amount;
+        emit Transfer(from, address(0), amount);
+    }
+
+    // =============================================================
+    // Withdrawal request flow (guarded)
+    // =============================================================
+
+    function computeRequestId(
+        address reqOwner,
+        address receiver,
+        uint256 shares,
+        uint256 minAssets,
+        uint64 validAfter,
+        uint256 salt
+    ) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(reqOwner, receiver, shares, minAssets, validAfter, salt));
+    }
+
+    function requestWithdraw(
+        address receiver,
+        uint256 shares,

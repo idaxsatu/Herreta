@@ -210,3 +210,56 @@ contract Herreta {
         uint16 value;
         uint256 eta;
         bool queued;
+    }
+
+    struct QueuedAddress {
+        uint256 nonce;
+        address value;
+        uint256 eta;
+        bool queued;
+    }
+
+    struct QueuedUint32 {
+        uint256 nonce;
+        uint32 value;
+        uint256 eta;
+        bool queued;
+    }
+
+    uint32 public constant MIN_DELAY = 2 hours;
+    uint32 public constant MAX_DELAY = 30 days;
+    uint16 public constant MAX_FEE_BPS = 125; // 1.25%
+
+    QueuedUint16 private _queuedFeeBps;
+    QueuedAddress private _queuedFeeRecipient;
+    QueuedUint32 private _queuedWithdrawalDelay;
+
+    // =============================================================
+    // Withdrawal requests
+    // =============================================================
+
+    struct WithdrawalRequest {
+        address owner;
+        address receiver;
+        uint256 shares;
+        uint256 minAssets;
+        uint64 validAfter;
+        bool executed;
+        bool cancelled;
+    }
+
+    mapping(bytes32 => WithdrawalRequest) public withdrawalRequests;
+
+    // =============================================================
+    // Optional merkle rewards
+    // =============================================================
+
+    // leaf = keccak256(abi.encodePacked(epoch, account, amount))
+    bytes32 public rewardsRoot;
+    uint64 public rewardsEpoch;
+    mapping(uint64 => mapping(address => bool)) public rewardsClaimed;
+
+    // =============================================================
+    // Reentrancy guard
+    // =============================================================
+

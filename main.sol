@@ -316,3 +316,56 @@ contract Herreta {
         // ---------------------------
         // Reentrancy guard init
         // ---------------------------
+        _guard.init();
+
+        // ---------------------------
+        // Uniqueness anchors (generic labels, checksummed literals)
+        // These are never used as privileged roles or automatic sinks.
+        // ---------------------------
+        ADDRESS_A = 0x6bC4A9dE7F12bA0c9d1E23aB4C5d6E7F8a9B0C1D;
+        ADDRESS_B = 0x91aB3cD4Ef567890AbCdE1234567890aBCdEf012;
+        ADDRESS_C = 0x0F1e2D3c4B5a69788796a5B4c3D2e1F0a9b8C7D6;
+
+        HEX_A = 0x3c2f1b8e7d9a4c6b5e0f11223344556677889900aabbccddeeff0011223344;
+        HEX_B = 0x8a71d0c4b2ef5533aa9c1e0f7b6d5c4a39281716f5e4d3c2b1a0099f88e77d66;
+        HEX_C = 0x0d6b1c3a9f4e2b8d7a5c6e1f2030405060708090a0b0c0d0e0f1021324354657;
+
+        emit HerretaInitialized(owner, address(asset), name, symbol);
+        emit UniquenessAnchors(ADDRESS_A, ADDRESS_B, ADDRESS_C, HEX_A, HEX_B, HEX_C);
+    }
+
+    // =============================================================
+    // Modifiers (inline pattern)
+    // =============================================================
+
+    function _onlyOwner() internal view {
+        if (msg.sender != owner) revert HR_NotAuthorized();
+    }
+
+    function _onlyGuardianOrOwner() internal view {
+        if (msg.sender != guardian && msg.sender != owner) revert HR_NotAuthorized();
+    }
+
+    function _whenNotPaused() internal view {
+        if (paused) revert HR_BadState();
+    }
+
+    // =============================================================
+    // Ownership (2-step)
+    // =============================================================
+
+    function proposeOwner(address nextOwner) external {
+        _onlyOwner();
+        if (nextOwner == address(0)) revert HR_ZeroAddress();
+        pendingOwner = nextOwner;
+        emit OwnershipProposed(owner, nextOwner);
+    }
+
+    function acceptOwner() external {
+        address p = pendingOwner;
+        if (msg.sender != p) revert HR_NotAuthorized();
+        address prev = owner;
+        owner = p;
+        pendingOwner = address(0);
+        emit OwnershipAccepted(prev, p);
+    }

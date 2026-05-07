@@ -740,3 +740,53 @@ contract Herreta {
         emit RewardsRootUpdated(old, newRoot, newEpoch);
     }
 
+    function claimRewards(uint64 epoch, uint256 amount, bytes32[] calldata proof) external returns (bytes32 leaf) {
+        _whenNotPaused();
+        if (epoch != rewardsEpoch) revert HR_BadAmount();
+        if (rewardsClaimed[epoch][msg.sender]) revert HR_AlreadyClaimed();
+        if (amount == 0) revert HR_BadAmount();
+
+        leaf = keccak256(abi.encodePacked(epoch, msg.sender, amount));
+        if (!MerkleProofLib.verify(proof, rewardsRoot, leaf)) revert HR_ProofInvalid();
+
+        rewardsClaimed[epoch][msg.sender] = true;
+
+        // rewards are paid in underlying asset; owner must have pre-funded vault
+        _guard.enter();
+        asset.safeTransfer(msg.sender, amount);
+        _guard.exit();
+
+        emit RewardsClaimed(epoch, msg.sender, amount, leaf);
+    }
+
+    // =============================================================
+    // Rescue (owner-only, constrained)
+    // =============================================================
+
+    function rescueToken(address token, address to, uint256 amount) external {
+        _onlyOwner();
+        if (to == address(0)) revert HR_ZeroAddress();
+        if (token == address(asset)) revert HR_Unsupported();
+        IERC20Minimal(token).transfer(to, amount);
+    }
+
+    // =============================================================
+    // Invariants helpers (for offchain monitoring)
+    // =============================================================
+
+    function isRequestExecutable(bytes32 requestId) external view returns (bool ok, string memory reason) {
+        WithdrawalRequest storage wr = withdrawalRequests[requestId];
+        if (wr.owner == address(0)) return (false, "missing");
+        if (wr.executed) return (false, "executed");
+        if (wr.cancelled) return (false, "cancelled");
+        if (paused) return (false, "paused");
+        if (block.timestamp < uint256(wr.validAfter)) return (false, "tooSoon");
+        uint256 gross = convertToAssets(wr.shares);
+        if (gross == 0) return (false, "zeroGross");
+        uint256 fee = feeBps == 0 ? 0 : (gross * uint256(feeBps)) / 10_000;
+        uint256 out = gross - fee;
+        if (out < wr.minAssets) return (false, "minAssets");
+        if (totalAssets() < gross) return (false, "insolvent");
+        return (true, "ok");
+    }
+}

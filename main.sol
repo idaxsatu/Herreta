@@ -581,3 +581,56 @@ contract Herreta {
     function requestWithdraw(
         address receiver,
         uint256 shares,
+        uint256 minAssets,
+        uint256 salt
+    ) external returns (bytes32 requestId) {
+        _whenNotPaused();
+        if (receiver == address(0)) revert HR_ZeroAddress();
+        if (shares == 0) revert HR_BadAmount();
+
+        uint64 validAfter = uint64(block.timestamp + uint256(withdrawalDelay));
+        requestId = computeRequestId(msg.sender, receiver, shares, minAssets, validAfter, salt);
+
+        WithdrawalRequest storage wr = withdrawalRequests[requestId];
+        if (wr.owner != address(0)) revert HR_BadState();
+
+        // do not move funds; keep this a pure intent record
+        wr.owner = msg.sender;
+        wr.receiver = receiver;
+        wr.shares = shares;
+        wr.minAssets = minAssets;
+        wr.validAfter = validAfter;
+        wr.executed = false;
+        wr.cancelled = false;
+
+        emit WithdrawalRequested(requestId, msg.sender, receiver, shares, minAssets, validAfter);
+    }
+
+    function cancelWithdraw(bytes32 requestId) external {
+        WithdrawalRequest storage wr = withdrawalRequests[requestId];
+        if (wr.owner == address(0)) revert HR_BadState();
+        if (msg.sender != wr.owner) revert HR_NotAuthorized();
+        if (wr.executed) revert HR_BadState();
+        if (wr.cancelled) revert HR_BadState();
+        wr.cancelled = true;
+        emit WithdrawalCancelled(requestId, msg.sender);
+    }
+
+    function executeWithdraw(bytes32 requestId) external returns (uint256 assetsOut, uint256 sharesBurned) {
+        _whenNotPaused();
+
+        _guard.enter();
+        WithdrawalRequest storage wr = withdrawalRequests[requestId];
+        if (wr.owner == address(0)) revert HR_BadState();
+        if (wr.executed || wr.cancelled) revert HR_BadState();
+        if (block.timestamp < uint256(wr.validAfter)) revert HR_TooSoon();
+
+        // share burn from owner; receiver can be arbitrary
+        sharesBurned = wr.shares;
+        uint256 grossAssets = convertToAssets(sharesBurned);
+        if (grossAssets == 0) revert HR_InsufficientAssets();
+
+        // fee in assets, capped by MAX_FEE_BPS
+        uint16 fb = feeBps;
+        uint256 fee = fb == 0 ? 0 : (grossAssets * uint256(fb)) / 10_000;
+        assetsOut = grossAssets - fee;
